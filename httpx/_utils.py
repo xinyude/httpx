@@ -68,6 +68,13 @@ def get_environment_proxies() -> dict[str, str | None]:
                 mounts[f"all://{hostname}"] = None
             elif is_ipv6_hostname(hostname):
                 mounts[f"all://[{hostname}]"] = None
+            elif (
+                hostname.startswith("[")
+                and re.fullmatch(r"\[[^]/]+\](?::[0-9]+)?", hostname)
+                and is_ipv6_hostname(hostname[1:].split("]", 1)[0])
+            ):
+                # Bracketed IPv6 addresses may also include a port.
+                mounts[f"all://{hostname}"] = None
             elif hostname.lower() == "localhost":
                 mounts[f"all://{hostname}"] = None
             else:

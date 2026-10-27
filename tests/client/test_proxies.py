@@ -153,6 +153,45 @@ def test_unsupported_proxy_scheme():
             {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "127.0.0.1"},
             None,
         ),
+        # Bracketed IPv6 addresses bypass proxies, including with a port.
+        (
+            "http://[::1]",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[::1]"},
+            None,
+        ),
+        (
+            "https://[::1]:8443",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[::1]"},
+            None,
+        ),
+        (
+            "http://[::2]",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[::1]"},
+            "http://localhost:123",
+        ),
+        (
+            "http://[::1]:8080",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[::1]:8080"},
+            None,
+        ),
+        (
+            "http://[::1]:8081",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[::1]:8080"},
+            "http://localhost:123",
+        ),
+        (
+            "http://[2001:db8::1]",
+            {"ALL_PROXY": "http://localhost:123", "NO_PROXY": "[2001:db8::1]"},
+            None,
+        ),
+        (
+            "http://[::1]",
+            {
+                "ALL_PROXY": "http://localhost:123",
+                "NO_PROXY": "127.0.0.1, localhost, ::1, [::1]",
+            },
+            None,
+        ),
         # Proxied if NO_PROXY scheme does not match URL.
         (
             "http://127.0.0.1",
@@ -234,6 +273,15 @@ def test_proxies_environ(monkeypatch, client_class, url, env, expected):
         assert transport == client._transport
     else:
         assert transport._pool._proxy_url == url_to_origin(expected)
+
+
+@pytest.mark.parametrize("client_class", [httpx.Client, httpx.AsyncClient])
+def test_bracketed_ipv6_cidr_does_not_silently_bypass_proxy(monkeypatch, client_class):
+    monkeypatch.setenv("ALL_PROXY", "http://localhost:123")
+    monkeypatch.setenv("NO_PROXY", "[::1]/128")
+
+    with pytest.raises(httpx.InvalidURL):
+        client_class()
 
 
 @pytest.mark.parametrize(
